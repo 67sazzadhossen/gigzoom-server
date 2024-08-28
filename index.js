@@ -26,6 +26,7 @@ async function run() {
     // await client.connect();
 
     const userCollection = client.db("gigzoomDb").collection("users");
+    const paymentConfirm = client.db("gigzoomDb").collection("paymentConfirm");
     const taskCollection = client.db("gigzoomDb").collection("taskCollection");
     const notificationCollection = client
       .db("gigzoomDb")
@@ -146,10 +147,56 @@ async function run() {
       res.send({ count });
     });
 
-    // get all task by user email:for task creator to get her task
-    app.get("/all-task/:email", async (req, res) => {
+    // Task Creator
+
+    app.get("/task-submission/:email", async (req, res) => {
       const email = req.params.email;
-      const query = { "user.email": email };
+      const query = { creator_email: email, status: "Pending" };
+      const result = await submissionCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    app.get("/task-creator-state/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+
+      const { coin } = await userCollection.findOne(query, {
+        projection: {
+          _id: 0,
+          coin: 1,
+        },
+      });
+
+      const query2 = {
+        status: "Pending",
+        creator_email: email,
+      };
+      const pendingTask = await submissionCollection.countDocuments(query2);
+
+      const paymentPaid = await paymentConfirm.find(query).toArray();
+      // console.log(paymentPaid);
+
+      // const totalPayableAmount = await submissionCollection.find({
+      //     status: "Approve",
+      //     creator_email: email
+      //     }).toArray()
+      // console.log(totalPayableAmount);
+
+      const total = paymentPaid.reduce((acc, cr) => {
+        return acc + cr.dollars;
+      }, 0);
+
+      // const total = totalPayableAmount.reduce((accumulator, currentValue) => {
+      //     return accumulator + currentValue.payable_amount;
+      // }, 0);
+
+      res.send({ pendingTask, coin, total });
+    });
+
+    // get all task by user email:for task creator to get her task
+    app.get("/all-task", async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
       const options = {
         sort: { "user.post_time": -1 }, // -1 for descending order
       };
