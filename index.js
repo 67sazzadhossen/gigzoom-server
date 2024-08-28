@@ -102,6 +102,39 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/worker-state/:email", async (req, res) => {
+      const email = req.params.email;
+      const { coin } = await userCollection.findOne(
+        { email: email },
+        {
+          projection: {
+            _id: 0,
+            coin: 1,
+          },
+        }
+      );
+
+      const total_submission = await submissionCollection.countDocuments({
+        worker_email: email,
+      });
+
+      const total_earning = await submissionCollection
+        .find({ worker_email: email, status: "Approve" })
+        .toArray();
+      const total = total_earning.reduce((accumulator, currentValue) => {
+        return accumulator + currentValue.payble_amount;
+      }, 0);
+
+      res.send({ coin, total_submission, total });
+    });
+
+    app.get("/worker-submission/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { worker_email: email, status: "Approve" };
+      const result = await submissionCollection.find(query).toArray();
+      res.send(result);
+    });
+
     app.post("/notification", async (req, res) => {
       const notify = req.body;
       const result = await notificationCollection.insertOne(notify);
