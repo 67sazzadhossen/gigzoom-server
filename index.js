@@ -501,14 +501,14 @@ async function run() {
       const result2 = await userCollection.find().toArray();
 
       const totalCoin = result2.reduce((acc, cr) => {
-        return acc + cr.coins;
+        return parseInt(acc) + parseInt(cr.coins);
       }, 0);
 
       const paymentPaid = await paymentConfirm.find().toArray();
       // console.log(paymentPaid)
 
       const totalPay = paymentPaid.reduce((acc, cr) => {
-        return acc + cr.coins;
+        return parseInt(acc) + parseInt(cr.coins);
       }, 0);
 
       // console.log(paymentPaid);
