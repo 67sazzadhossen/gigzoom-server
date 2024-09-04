@@ -2,6 +2,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 require("dotenv").config();
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const corsOptions = {
@@ -10,10 +11,30 @@ const corsOptions = {
     "https://gigzoom.web.app",
     "https://gigzoom.firebaseapp.com",
   ],
+  credentials: true,
 };
 const port = process.env.PORT || 5000;
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
+
+const verifyToken = (req, res, next) => {
+  const token = req.cookies?.token;
+
+  if (!token) {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: "unauthorized access" });
+    }
+    req.user = decoded;
+    if (req.query?.email !== req.user.email) {
+      return res.status(403).send({ message: "forbidden access" });
+    }
+    next();
+  });
+};
 
 // mongodb
 
@@ -28,6 +49,12 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
+
+const cookieOptions = {
+  httpOnly: true,
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+  secure: process.env.NODE_ENV === "production" ? true : false,
+};
 
 async function run() {
   try {
@@ -47,31 +74,35 @@ async function run() {
       .db("gigZoom")
       .collection("notification");
 
-    //jwt related api:
     app.post("/jwt", async (req, res) => {
       const user = req.body;
-
+      console.log(user);
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "7d",
+        expiresIn: "1h",
       });
-      res.send({ token });
+      res.cookie("token", token, cookieOptions).send({ success: true });
+    });
+
+    app.post("/log-out", async (req, res) => {
+      res
+        .clearCookie("token", { ...cookieOptions, maxAge: 0 })
+        .send({ success: true });
     });
 
     //middleware:
-    const verifyToken = (req, res, next) => {
-      // console.log(req.headers.authorization, 'from middleware');
-      if (!req.headers.authorization) {
-        return res.status(401).send({ message: "unauthorized access " });
-      }
-      const token = req.headers.authorization.split(" ")[1];
-      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if (err) {
-          return res.status(401).send({ message: "unauthorized access " });
-        }
-        req.user = decoded;
-        next();
-      });
-    };
+    // const verifyToken = (req, res, next) => {
+    //   if (!req.headers.authorization) {
+    //     return res.status(401).send({ message: "unauthorized access " });
+    //   }
+    //   const token = req.headers.authorization.split(" ")[1];
+    //   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    //     if (err) {
+    //       return res.status(401).send({ message: "unauthorized access " });
+    //     }
+    //     req.user = decoded;
+    //     next();
+    //   });
+    // };
 
     // save a user data in db
     app.put("/user", async (req, res) => {
@@ -182,7 +213,7 @@ async function run() {
     });
 
     // update single task by id:task creator
-    app.patch("/my-task/:id", async (req, res) => {
+    app.patch("/my-task/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const data = req.body;
