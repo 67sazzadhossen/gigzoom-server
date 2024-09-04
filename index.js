@@ -7,9 +7,8 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const corsOptions = {
   origin: [
     "http://localhost:5173",
-    "http://localhost:5174",
-    "https://b9-a12.web.app",
-    "https://b9-a12.firebaseapp.com",
+    "https://gigzoom.web.app",
+    "https://gigzoom.firebaseapp.com",
   ],
 };
 const port = process.env.PORT || 5000;
